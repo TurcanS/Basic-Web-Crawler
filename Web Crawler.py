@@ -11,15 +11,22 @@ import validators
 logging.basicConfig(level=logging.INFO)
 
 class LinkParser:
-    def __init__(self):
+    def __init__(self) -> None:
         self.session = requests.Session()
         self.ua = UserAgent()
-        self.session.headers.update({
-            'User-Agent': self.ua.random
-        })
+        self.session.headers.update({'User-Agent': self.ua.random})
         self.robots_parser = RobotExclusionRulesParser()
 
-    def extract_links(self, url, limit=10):
+    def extract_links(self, url: str, limit: int = 10) -> set:
+        """Extract links from a given URL up to a specified limit.
+
+        Args:
+            url (str): The target URL to extract links from.
+            limit (int, optional): The maximum number of links to extract. Defaults to 10.
+
+        Returns:
+            set: A set containing the extracted links.
+        """
         links = set()
         try:
             response = self.session.get(url)
@@ -32,7 +39,15 @@ class LinkParser:
             logging.error(f"Error fetching {url}: {e}")
         return links
 
-    def can_fetch(self, url):
+    def can_fetch(self, url: str) -> bool:
+        """Check if a given URL can be fetched according to its robots.txt.
+
+        Args:
+            url (str): The URL to check.
+
+        Returns:
+            bool: True if the URL can be fetched, False otherwise.
+        """
         try:
             robots_url = urljoin(url, '/robots.txt')
             self.robots_parser.fetch(robots_url)
@@ -40,27 +55,53 @@ class LinkParser:
         except:
             return True
 
-def crawl(start_url, depth=2, link_limit=10, excluded_domains=[]):
+def is_domain_excluded(url: str, excluded_domains: list) -> bool:
+    """Check if the domain of a given URL is in the excluded domains list.
+
+    Args:
+        url (str): The URL to check.
+        excluded_domains (list): The list of domains to exclude.
+
+    Returns:
+        bool: True if the URL's domain is in the excluded list, False otherwise.
+    """
+    return any(domain in urlparse(url).netloc for domain in excluded_domains)
+
+def crawl(start_url: str, depth: int = 2, link_limit: int = 10, excluded_domains: list = []) -> None:
+    """Crawl a website starting from a given URL up to a specified depth.
+
+    Args:
+        start_url (str): The starting URL.
+        depth (int, optional): The maximum depth to crawl. Defaults to 2.
+        link_limit (int, optional): The maximum number of links to extract per page. Defaults to 10.
+        excluded_domains (list, optional): List of domains to exclude from crawling. Defaults to [].
+    """
     visited = set()
     parser = LinkParser()
     queue = deque([(start_url, 1)])
 
     while queue:
         url, current_depth = queue.popleft()
-        if current_depth > depth or url in visited or any(domain in urlparse(url).netloc for domain in excluded_domains):
+
+        if current_depth > depth or url in visited or is_domain_excluded(url, excluded_domains):
             continue
+
         if not parser.can_fetch(url):
             logging.info(f"Respecting robots.txt for {url}")
             continue
+
         visited.add(url)
         links = parser.extract_links(url, link_limit)
+
         logging.info(f"Depth: {current_depth}, URL: {url}, Links: {len(links)}")
+
         for link in links:
             logging.info(link)
             if current_depth < depth:
                 queue.append((link, current_depth + 1))
 
-def display_ascii_art():
+def display_ascii_art() -> None:
+    """Display ASCII art."""
     art = """
     W   W  EEEEE  B B B
     W   W  E      B   B
@@ -70,7 +111,7 @@ def display_ascii_art():
     """
     print(art)
 
-def main():
+def main() -> None:
     display_ascii_art()
 
     parser = argparse.ArgumentParser(description='Web Crawler CLI')
